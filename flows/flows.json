@@ -1,0 +1,1510 @@
+[
+    {
+        "id": "4d3e3113752967c4",
+        "type": "tab",
+        "label": "Transaction_Risk_Control_System",
+        "disabled": false,
+        "info": "A real-time fraud detection system built using Node-RED, Fuzzy Logic, Dashboard UI, and DB2. \r\nIt simulates transactions, calculates a risk score (Normal/Warning/Critical), and provides alerts, \r\nvisualization, and audit logging.\r\n\r\n#  How to Run\r\n\r\nImport the flow into Node-RED\r\nInstall required nodes: Dashboard, UI Table, DB2\r\nConfigure DB2 connection (DB2 for i Config)\r\nDeploy and open: http://iug3.rowton.it:18815/ui/\r\nUse:\r\n\r\nTransaction Stream → generate transactions\r\nForce High Risk → simulate fraud\r\n\r\n\r\n#  Key Features\r\nFuzzy logic-based risk scoring engine\r\nLive dashboard (gauge, chart, stats)\r\nCritical alerts with adjustable threshold\r\nDB2 audit logging of flagged transactions\r\nAnalyst review workflow (disposition + notes)\r\n\r\n#  Flow Summary\r\nGenerate → Analyse (Fuzzy Engine) → Display → Alert → Store (DB2) → Review",
+        "env": []
+    },
+    {
+        "id": "3a1fa3bc585e82be",
+        "type": "inject",
+        "z": "4d3e3113752967c4",
+        "name": "Transaction Stream",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "3",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 160,
+        "wires": [
+            [
+                "2f0e245455c9caa9"
+            ]
+        ]
+    },
+    {
+        "id": "c27e192d4a68b8c0",
+        "type": "ui_button",
+        "z": "4d3e3113752967c4",
+        "name": "",
+        "group": "b50890fd10d45446",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Force High Risk",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "force",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 160,
+        "y": 260,
+        "wires": [
+            [
+                "2f0e245455c9caa9",
+                "895cfaa61f3e70a7"
+            ]
+        ]
+    },
+    {
+        "id": "2f0e245455c9caa9",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Generate Transaction",
+        "func": "var accounts = [\"ACC-1001\", \"ACC-1002\", \"ACC-1003\", \"ACC-1004\", \"ACC-1005\"];\nvar merchants = [\"Retail\", \"Online\", \"ATM Withdrawal\", \"Travel\", \"Subscription\"];\nvar forceHighRisk = (msg.payload === \"force\");\n\nmsg.payload = {\n    transactionId: \"TXN-\" + Date.now(),\n    accountId: accounts[Math.floor(Math.random() * accounts.length)],\n    merchantCategory: merchants[Math.floor(Math.random() * merchants.length)],\n    amount: forceHighRisk ? 5000 + Math.random() * 10000 : 10 + Math.random() * 500,\n    velocity: forceHighRisk ? 8 + Math.floor(Math.random() * 5) : Math.floor(Math.random() * 3),\n    locationMismatch: forceHighRisk ? 80 + Math.random() * 20 : Math.random() * 30,\n    timeOfDayRisk: forceHighRisk ? 70 + Math.random() * 30 : Math.random() * 40,\n    timestamp: new Date().toISOString()\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 200,
+        "wires": [
+            [
+                "b2b3840bcf058455",
+                "212a010896cdddec"
+            ]
+        ]
+    },
+    {
+        "id": "b2b3840bcf058455",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 12",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 620,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "895cfaa61f3e70a7",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 13",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 400,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "212a010896cdddec",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Fuzzy Risk & Explainability Engine",
+        "func": "function triMF(x, a, b, c) {\n    if (x <= a || x >= c) return 0;\n    if (x === b) return 1;\n    if (x < b) return (x - a) / (b - a);\n    return (c - x) / (c - b);\n}\nfunction fuzzify(x, lowPts, medPts, highPts) {\n    return {\n        low: triMF(x, lowPts[0], lowPts[1], lowPts[2]),\n        medium: triMF(x, medPts[0], medPts[1], medPts[2]),\n        high: triMF(x, highPts[0], highPts[1], highPts[2])\n    };\n}\n\nvar t = msg.payload;\nvar amt = fuzzify(t.amount, [0, 0, 1000], [300, 1500, 3000], [2000, 15000, 15000]);\nvar vel = fuzzify(t.velocity, [0, 0, 3], [1, 4, 7], [5, 15, 15]);\nvar loc = fuzzify(t.locationMismatch, [0, 0, 40], [20, 50, 80], [60, 100, 100]);\nvar tod = fuzzify(t.timeOfDayRisk, [0, 0, 40], [20, 50, 80], [60, 100, 100]);\n\n//normal: max of all normal rules\n//warning: max of all warning rules\n//critical: max of all critical rules\nvar rules = [\n    { name: \"Large amount combined with high transaction velocity\", output: \"critical\", strength: Math.min(amt.high, vel.high) },\n    { name: \"Location mismatch or unusual transaction timing\", output: \"critical\", strength: Math.max(loc.high, tod.high) },\n    { name: \"Moderate amount or velocity\", output: \"warning\", strength: Math.max(amt.medium, vel.medium) },\n    { name: \"Mild location or timing irregularity\", output: \"warning\", strength: Math.max(loc.medium, tod.medium) },\n    { name: \"All factors within normal range\", output: \"normal\", strength: Math.min(amt.low, vel.low, loc.low, tod.low) }\n];\n\nvar dominant = rules.reduce(function (a, b) { return b.strength > a.strength ? b : a; });\nvar agg = { normal: 0, warning: 0, critical: 0 };\nrules.forEach(function (r) { agg[r.output] = Math.max(agg[r.output], r.strength); });\n\nvar points = { normal: 10, warning: 50, critical: 90 };\nvar num = agg.normal * points.normal + agg.warning * points.warning + agg.critical * points.critical;\nvar den = agg.normal + agg.warning + agg.critical;\nvar severity = den > 0 ? num / den : 0;\n\n// Dynamic threshold — read live from flow context, set by the slider \nvar criticalThreshold = flow.get('criticalThreshold') || 70;\nvar label = severity >= criticalThreshold ? \"Critical\" : severity >= 40 ? \"Warning\" : \"Normal\";\n\nvar reason = label === \"Normal\"\n    ? \"All risk factors within normal range\"\n    : dominant.name + \" (rule strength \" + dominant.strength.toFixed(2) + \")\";\n\nmsg.payload = {\n    transactionId: t.transactionId,\n    accountId: t.accountId,\n    merchantCategory: t.merchantCategory,\n    amount: Math.round(t.amount * 100) / 100,\n    velocity: t.velocity,\n    locationMismatch: Math.round(t.locationMismatch),\n    timeOfDayRisk: Math.round(t.timeOfDayRisk),\n    riskScore: Math.round(severity),\n    riskLabel: label,\n    reason: reason,\n    timestamp: t.timestamp\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 840,
+        "y": 200,
+        "wires": [
+            [
+                "5af3eb4e0ab97907",
+                "15161f790c498f35",
+                "e2a4fb4bd14a4323",
+                "54feb4789d04523b",
+                "5698d91a622d6d29"
+            ]
+        ]
+    },
+    {
+        "id": "dd9b4d20d221836e",
+        "type": "comment",
+        "z": "4d3e3113752967c4",
+        "name": "First flow: Generating Transaction in certain interval and forcing high risk ",
+        "info": "",
+        "x": 270,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "5af3eb4e0ab97907",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 14",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1080,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "15161f790c498f35",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Extract Score",
+        "func": "msg.payload = msg.payload.riskScore;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1160,
+        "y": 200,
+        "wires": [
+            [
+                "8d4338e18521e448",
+                "450c73beb9153e76"
+            ]
+        ]
+    },
+    {
+        "id": "8d4338e18521e448",
+        "type": "ui_gauge",
+        "z": "4d3e3113752967c4",
+        "name": "Current Risk Score",
+        "group": "e86fde56491e81cb",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "gtype": "gage",
+        "title": "Risk Score",
+        "label": "",
+        "format": "{{value}}",
+        "min": 0,
+        "max": "100",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "39",
+        "seg2": "69",
+        "diff": false,
+        "className": "",
+        "x": 1430,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "450c73beb9153e76",
+        "type": "ui_chart",
+        "z": "4d3e3113752967c4",
+        "name": "Risk Score Trend",
+        "group": "e86fde56491e81cb",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "label": "Risk Score Trend (Chart)",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": false,
+        "ymin": "0",
+        "ymax": "100",
+        "removeOlder": "5",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "60",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 1470,
+        "y": 320,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "e2a4fb4bd14a4323",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Stats Aggregator",
+        "func": "var stats = flow.get('riskStats') || { total: 0, flagged: 0, totalScore: 0 };\nstats.total += 1;\nstats.totalScore += msg.payload.riskScore;\nif (msg.payload.riskLabel !== \"Normal\") { stats.flagged += 1; }\nflow.set('riskStats', stats);\n\nmsg.payload = {\n    totalProcessed: stats.total,\n    flaggedCount: stats.flagged,\n    avgRiskScore: Math.round(stats.totalScore / stats.total)\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1470,
+        "y": 520,
+        "wires": [
+            [
+                "a0df0103da1a387e"
+            ]
+        ]
+    },
+    {
+        "id": "a0df0103da1a387e",
+        "type": "ui_template",
+        "z": "4d3e3113752967c4",
+        "group": "d89deef6ad8ae363",
+        "name": "Stats Display",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "format": "<style>\n.stats-wrap { display:flex; justify-content:space-around; align-items:center; gap:12px;\n  padding:14px 10px; background:linear-gradient(135deg,#1e2530,#131820); border-radius:12px;\n  font-family:'Segoe UI',sans-serif; box-shadow:0 2px 8px rgba(0,0,0,0.35); }\n.stat-card { text-align:center; flex:1; }\n.stat-value { font-size:22px; font-weight:700; color:#4fd1c5; transition:color .3s; }\n.stat-label { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:#9aa5b1; margin-top:2px; }\n.stat-card.flag .stat-value { color:#ff6b6b; }\n.stat-card.avg .stat-value { color:#ffd166; }\n</style>\n<div class=\"stats-wrap\">\n  <div class=\"stat-card total\"><div class=\"stat-value\">{{msg.payload.totalProcessed}}</div><div class=\"stat-label\">Processed</div></div>\n  <div class=\"stat-card flag\"><div class=\"stat-value\">{{msg.payload.flaggedCount}}</div><div class=\"stat-label\">Flagged</div></div>\n  <div class=\"stat-card avg\"><div class=\"stat-value\">{{msg.payload.avgRiskScore}}</div><div class=\"stat-label\">Avg Score</div></div>\n</div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 1730,
+        "y": 520,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "03039fee3e870c48",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Initialise Stats",
+        "func": "flow.set('riskStats', {\n    total: 0,\n    flagged: 0,\n    totalScore: 0\n});\n\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 460,
+        "y": 580,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "88c53071a14bee21",
+        "type": "inject",
+        "z": "4d3e3113752967c4",
+        "name": "Reset Stats",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "0.5",
+        "topic": "",
+        "payload": "reset",
+        "payloadType": "str",
+        "x": 210,
+        "y": 580,
+        "wires": [
+            [
+                "03039fee3e870c48"
+            ]
+        ]
+    },
+    {
+        "id": "20b757f2f307716c",
+        "type": "comment",
+        "z": "4d3e3113752967c4",
+        "name": "To Reset Stats in UI ",
+        "info": "",
+        "x": 230,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "54feb4789d04523b",
+        "type": "switch",
+        "z": "4d3e3113752967c4",
+        "name": "Risk Router",
+        "property": "payload.riskLabel",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "neq",
+                "v": "Normal",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1070,
+        "y": 700,
+        "wires": [
+            [
+                "a77f146d4b639cae",
+                "dfcc1f50df229069",
+                "5d5159a165f5dd1d"
+            ]
+        ]
+    },
+    {
+        "id": "dfcc1f50df229069",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Update Flagged Table",
+        "func": "var table = flow.get('flaggedTable') || [];\ntable.unshift({\n    time: new Date(msg.payload.timestamp).toLocaleTimeString(),\n    transactionId: msg.payload.transactionId,\n    account: msg.payload.accountId,\n    amount: \"£\" + msg.payload.amount.toFixed(2),\n    score: msg.payload.riskScore,\n    label: msg.payload.riskLabel,\n    reason: msg.payload.reason\n});\nif (table.length > 15) table.pop();\nflow.set('flaggedTable', table);\nmsg.payload = table;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1400,
+        "y": 700,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f701"
+            ]
+        ]
+    },
+    {
+        "id": "a77f146d4b639cae",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 15",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1120,
+        "y": 840,
+        "wires": []
+    },
+    {
+        "id": "5d5159a165f5dd1d",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Prepare DB2 Insert",
+        "func": "var t = msg.payload;\n\nfunction esc(v) {\n    return String(v === undefined || v === null ? \"\" : v).replace(/'/g, \"''\");\n}\n\nmsg.payload = `\nINSERT INTO IUGRED_15.RISK_AUDIT_LOG\n(TRANSACTION_ID, ACCOUNT_ID, AMOUNT, RISK_SCORE, RISK_LABEL, REASON, CREATED_AT)\nVALUES (\n    '${esc(t.transactionId)}',\n    '${esc(t.accountId)}',\n    ${Number(t.amount).toFixed(2)},\n    ${parseInt(t.riskScore, 10)},\n    '${esc(t.riskLabel)}',\n    '${esc(t.reason)}',\n    CURRENT_TIMESTAMP\n)\nWITH NC\n`;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1570,
+        "y": 900,
+        "wires": [
+            [
+                "63c2c4170e117c08"
+            ]
+        ]
+    },
+    {
+        "id": "63c2c4170e117c08",
+        "type": "DB2 for i",
+        "z": "4d3e3113752967c4",
+        "mydb": "c783136d02b66193",
+        "name": "Insert Audit Log",
+        "arraymode": false,
+        "x": 1920,
+        "y": 900,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5263e209470efa8c",
+        "type": "inject",
+        "z": "4d3e3113752967c4",
+        "name": "Create Audit Table",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 1150,
+        "y": 1060,
+        "wires": [
+            [
+                "a30f43b78449e778"
+            ]
+        ]
+    },
+    {
+        "id": "b7371ecfa55e92cc",
+        "type": "comment",
+        "z": "4d3e3113752967c4",
+        "name": "Creating Audit Table",
+        "info": "Temporary mini-flow to creating a custom table for auditing purpose.",
+        "x": 970,
+        "y": 1000,
+        "wires": []
+    },
+    {
+        "id": "a30f43b78449e778",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Build Create Table SQL",
+        "func": "msg.payload = \n`CREATE TABLE IUGRED_15.RISK_AUDIT_LOG (\n  TRANSACTION_ID VARCHAR(30),\n  ACCOUNT_ID     VARCHAR(20),\n  AMOUNT         DECIMAL(10,2),\n  RISK_SCORE     INT,\n  RISK_LABEL     VARCHAR(10),\n  REASON         VARCHAR(200),\n  CREATED_AT     TIMESTAMP\n)`;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1410,
+        "y": 1060,
+        "wires": [
+            [
+                "63c2c4170e117c08",
+                "84d4b30fbf7a0d12"
+            ]
+        ]
+    },
+    {
+        "id": "84d4b30fbf7a0d12",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 16",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1560,
+        "y": 1160,
+        "wires": []
+    },
+    {
+        "id": "d8c086ed3f5b346d",
+        "type": "comment",
+        "z": "4d3e3113752967c4",
+        "name": "Verifying if row is inserted in Table",
+        "info": "",
+        "x": 500,
+        "y": 2480,
+        "wires": []
+    },
+    {
+        "id": "75c59a2c3856235f",
+        "type": "inject",
+        "z": "4d3e3113752967c4",
+        "name": "Check Audit Rows",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 390,
+        "y": 2560,
+        "wires": [
+            [
+                "4d583da19b26aba0"
+            ]
+        ]
+    },
+    {
+        "id": "4d583da19b26aba0",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Select Audit Rows",
+        "func": "msg.payload = `\nSELECT TRANSACTION_ID, ACCOUNT_ID, AMOUNT, RISK_SCORE, RISK_LABEL, REASON, CREATED_AT\nFROM IUGRED_15.RISK_AUDIT_LOG\nORDER BY CREATED_AT DESC\nFETCH FIRST 10 ROWS ONLY\n`;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 730,
+        "y": 2560,
+        "wires": [
+            [
+                "fb7ea0d4e11d0d16"
+            ]
+        ]
+    },
+    {
+        "id": "fb7ea0d4e11d0d16",
+        "type": "DB2 for i",
+        "z": "4d3e3113752967c4",
+        "mydb": "c783136d02b66193",
+        "name": "",
+        "arraymode": true,
+        "x": 1020,
+        "y": 2560,
+        "wires": [
+            [
+                "f73f3c233da9a6ef"
+            ]
+        ]
+    },
+    {
+        "id": "f73f3c233da9a6ef",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 17",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1300,
+        "y": 2560,
+        "wires": []
+    },
+    {
+        "id": "2ada74e6432528fe",
+        "type": "switch",
+        "z": "4d3e3113752967c4",
+        "name": "Critical Alert Filter",
+        "property": "payload.riskLabel",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "Critical",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 750,
+        "y": 1380,
+        "wires": [
+            [
+                "7ffd41eb157633c9",
+                "f1a2b3c4d5e6f709"
+            ]
+        ]
+    },
+    {
+        "id": "2578ce384af7818e",
+        "type": "comment",
+        "z": "4d3e3113752967c4",
+        "name": "Automated Critical Alert and popup for critical threshold",
+        "info": "Here we are going to pass:-\n1. only CRITICAL transactions\n2. build alert message text\n3. show popup on dashboard",
+        "x": 560,
+        "y": 1300,
+        "wires": []
+    },
+    {
+        "id": "5698d91a622d6d29",
+        "type": "link out",
+        "z": "4d3e3113752967c4",
+        "name": "To critical alert ",
+        "mode": "link",
+        "links": [
+            "29a0606ae92cb475"
+        ],
+        "x": 885,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "29a0606ae92cb475",
+        "type": "link in",
+        "z": "4d3e3113752967c4",
+        "name": "From Fuzzy Engine",
+        "links": [
+            "5698d91a622d6d29"
+        ],
+        "x": 345,
+        "y": 1380,
+        "wires": [
+            [
+                "2ada74e6432528fe"
+            ]
+        ]
+    },
+    {
+        "id": "7ffd41eb157633c9",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Build Alert Message",
+        "func": "var t = msg.payload;\n\nmsg.topic = \"🚨 Critical Risk Alert\";\nmsg.payload =\n    \"Txn: \" + t.transactionId +\n    \"\\nAcc: \" + t.accountId +\n    \"\\nScore: \" + t.riskScore + \" (\" + t.riskLabel + \")\" +\n    \"\\nAmount: £\" + Number(t.amount).toFixed(2) +\n    \"\\nReview Audit Log\";\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 1380,
+        "wires": [
+            [
+                "320484462176ce72"
+            ]
+        ]
+    },
+    {
+        "id": "320484462176ce72",
+        "type": "ui_toast",
+        "z": "4d3e3113752967c4",
+        "position": "top right",
+        "displayTime": "3",
+        "highlight": "",
+        "sendall": true,
+        "outputs": 0,
+        "ok": "OK",
+        "cancel": "",
+        "raw": false,
+        "className": "",
+        "topic": "",
+        "name": "System Notifications",
+        "x": 1640,
+        "y": 1460,
+        "wires": []
+    },
+    {
+        "id": "0b875113ecf3485c",
+        "type": "ui_slider",
+        "z": "4d3e3113752967c4",
+        "name": "Critical Threshold Adjuster",
+        "label": "Critical Threshold",
+        "tooltip": "",
+        "group": "b50890fd10d45446",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "outs": "all",
+        "topic": "topic",
+        "topicType": "msg",
+        "min": "50",
+        "max": "95",
+        "step": "5",
+        "className": "",
+        "x": 670,
+        "y": 1540,
+        "wires": [
+            [
+                "3843aee958712408"
+            ]
+        ]
+    },
+    {
+        "id": "3843aee958712408",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Update Threshold",
+        "func": "flow.set('criticalThreshold', Number(msg.payload));\n\nmsg.topic = \"⚙️ Risk Threshold Updated\";\nmsg.payload = \"New critical threshold: \" + msg.payload;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 990,
+        "y": 1540,
+        "wires": [
+            [
+                "320484462176ce72"
+            ]
+        ]
+    },
+    {
+        "id": "188c50b90d5de647",
+        "type": "comment",
+        "z": "4d3e3113752967c4",
+        "name": "Analyst Disposition Workflow",
+        "info": "",
+        "x": 400,
+        "y": 1700,
+        "wires": []
+    },
+    {
+        "id": "d428d8e22d390432",
+        "type": "inject",
+        "z": "4d3e3113752967c4",
+        "name": "Alter Table for Analyst Disposition Workflow",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 460,
+        "y": 1780,
+        "wires": [
+            [
+                "19314afb222f05f2"
+            ]
+        ]
+    },
+    {
+        "id": "19314afb222f05f2",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Add column SQL",
+        "func": "msg.payload = `\nALTER TABLE IUGRED_15.RISK_AUDIT_LOG\nADD COLUMN REVIEWED_AT TIMESTAMP\n`;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 910,
+        "y": 1780,
+        "wires": [
+            [
+                "f9e3528f2670bcec"
+            ]
+        ]
+    },
+    {
+        "id": "f9e3528f2670bcec",
+        "type": "DB2 for i",
+        "z": "4d3e3113752967c4",
+        "mydb": "c783136d02b66193",
+        "name": "Add Disposition",
+        "arraymode": false,
+        "x": 1240,
+        "y": 1780,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c3d8dc3c5a111784",
+        "type": "ui_form",
+        "z": "4d3e3113752967c4",
+        "name": "Analyst Disposition Review",
+        "label": "Analyst Review Form",
+        "group": "22a43d0e9b34ef0f",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "options": [
+            {
+                "label": "Transaction ID",
+                "value": "TransactionID",
+                "type": "text",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "Disposition (Confirmed Fraud / False Positive / Needs Escalation)",
+                "value": "Disposition",
+                "type": "text",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "Analyst Notes",
+                "value": "AnalystNotes",
+                "type": "multiline",
+                "required": false,
+                "rows": 3
+            }
+        ],
+        "formValue": {
+            "TransactionID": "",
+            "Disposition": "",
+            "AnalystNotes": ""
+        },
+        "payload": "",
+        "submit": "Submit Review",
+        "cancel": "Clear",
+        "topic": "topic",
+        "topicType": "msg",
+        "splitLayout": "",
+        "className": "",
+        "x": 420,
+        "y": 1940,
+        "wires": [
+            [
+                "3f0761362a58cf70"
+            ]
+        ]
+    },
+    {
+        "id": "3f0761362a58cf70",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Process Disposition",
+        "func": "var form = msg.payload || {};\n\nfunction clean(v) {\n    return String(v === undefined || v === null ? \"\" : v).trim();\n}\n\nvar txnId = clean(form.TransactionID);\nvar disposition = clean(form.Disposition);\nvar notes = clean(form.AnalystNotes);\n\nvar allowed = [\n    \"Confirmed Fraud\",\n    \"False Positive\",\n    \"Needs Escalation\"\n];\n\n// Validation: Transaction ID and Disposition required\nif (!txnId || !disposition) {\n    return [\n        {\n            topic: \"⚠️ Review Not Saved\",\n            payload: \"Please enter both Transaction ID and Disposition.\"\n        },\n        null\n    ];\n}\n\n// Validation: only allow known disposition values\nif (allowed.indexOf(disposition) === -1) {\n    return [\n        {\n            topic: \"⚠️ Invalid Disposition\",\n            payload: \"Use one of: Confirmed Fraud, False Positive, Needs Escalation.\"\n        },\n        null\n    ];\n}\n\nvar info = {\n    transactionId: txnId,\n    disposition: disposition,\n    notes: notes\n};\n\n// Output 1 -> notification path\nvar msg1 = {\n    dispositionInfo: info\n};\n\n// Output 2 -> DB2 update path\nvar msg2 = {\n    dispositionInfo: info\n};\n\nreturn [msg1, msg2];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 750,
+        "y": 1940,
+        "wires": [
+            [
+                "8b17291e0be095fb",
+                "5b61a4648685b02c"
+            ],
+            [
+                "4f5d1c6847e84519",
+                "f1a2b3c4d5e6f707"
+            ]
+        ],
+        "outputLabels": [
+            "Confirmation",
+            "DB Update"
+        ]
+    },
+    {
+        "id": "8b17291e0be095fb",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Build Disposition Confirmation",
+        "func": "var d = msg.dispositionInfo;\n\nmsg.topic = \"✅ Disposition Recorded\";\nmsg.payload =\n    \"Transaction \" + d.transactionId +\n    \"\\nDisposition: \" + d.disposition +\n    (d.notes ? \"\\nNotes saved successfully.\" : \"\\nNo notes provided.\");\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1330,
+        "y": 1940,
+        "wires": [
+            [
+                "320484462176ce72"
+            ]
+        ]
+    },
+    {
+        "id": "4f5d1c6847e84519",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Prepare DB2 Disposition Update",
+        "func": "var d = msg.dispositionInfo;\n\nfunction esc(v) {\n    return String(v === undefined || v === null ? \"\" : v).replace(/'/g, \"''\");\n}\n\nmsg.payload = `\nUPDATE IUGRED_15.RISK_AUDIT_LOG\nSET DISPOSITION = '${esc(d.disposition)}',\n    ANALYST_NOTES = '${esc(d.notes)}',\n    REVIEWED_AT = CURRENT_TIMESTAMP\nWHERE TRANSACTION_ID = '${esc(d.transactionId)}'\nWITH NC\n`;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1030,
+        "y": 2040,
+        "wires": [
+            [
+                "cbfe7c92b1e47039"
+            ]
+        ]
+    },
+    {
+        "id": "cbfe7c92b1e47039",
+        "type": "DB2 for i",
+        "z": "4d3e3113752967c4",
+        "mydb": "c783136d02b66193",
+        "name": "Update Disposition",
+        "arraymode": false,
+        "x": 1350,
+        "y": 2040,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "0841bef1f95b68b0",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Verify DB2 update for analyst review",
+        "func": "msg.payload = `\nSELECT TRANSACTION_ID, RISK_LABEL, DISPOSITION, ANALYST_NOTES, REVIEWED_AT\nFROM IUGRED_15.RISK_AUDIT_LOG\nORDER BY CREATED_AT DESC\nFETCH FIRST 10 ROWS ONLY\n`;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 870,
+        "y": 2240,
+        "wires": [
+            [
+                "92495d40f6dffcc2"
+            ]
+        ]
+    },
+    {
+        "id": "f51fe41bbe5903f0",
+        "type": "inject",
+        "z": "4d3e3113752967c4",
+        "name": "Verify analyst review in database",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 390,
+        "y": 2240,
+        "wires": [
+            [
+                "0841bef1f95b68b0"
+            ]
+        ]
+    },
+    {
+        "id": "92495d40f6dffcc2",
+        "type": "DB2 for i",
+        "z": "4d3e3113752967c4",
+        "mydb": "c783136d02b66193",
+        "name": "Verify Update DB2",
+        "arraymode": false,
+        "x": 1210,
+        "y": 2240,
+        "wires": [
+            [
+                "2cb787d49be71c23"
+            ]
+        ]
+    },
+    {
+        "id": "2cb787d49be71c23",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 18",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1340,
+        "y": 2340,
+        "wires": []
+    },
+    {
+        "id": "f1a2b3c4d5e6f701",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Render Audit Table HTML",
+        "func": "var rows = msg.payload || [];\nfunction badge(label) {\n    var cls = label === \"Critical\" ? \"badge-critical\" : label === \"Warning\" ? \"badge-warning\" : \"badge-normal\";\n    return '<span class=\"badge ' + cls + '\">' + label + '</span>';\n}\nvar html = rows.map(function(r) {\n    return '<tr>' +\n        '<td>' + r.time + '</td>' +\n        '<td class=\"mono\">' + r.transactionId + '</td>' +\n        '<td>' + r.account + '</td>' +\n        '<td>' + r.amount + '</td>' +\n        '<td class=\"score\">' + r.score + '</td>' +\n        '<td>' + badge(r.label) + '</td>' +\n        '<td class=\"reason\">' + r.reason + '</td>' +\n    '</tr>';\n}).join('');\n\nmsg.payload = html || '<tr><td colspan=\"7\" class=\"empty\">No flagged transactions yet</td></tr>';\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1570,
+        "y": 660,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f702"
+            ]
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f702",
+        "type": "ui_template",
+        "z": "4d3e3113752967c4",
+        "group": "2fb73521e634bbec",
+        "name": "Audit Log Table",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "format": "<style>\n  .audit-card {\n    font-family: 'Segoe UI', sans-serif;\n    background: #161b22;\n    border-radius: 10px;\n    padding: 10px;\n    height: 100%;\n    box-sizing: border-box;\n  }\n\n  .audit-scroll {\n    max-height: 340px;\n    overflow-y: auto;\n    border-radius: 8px;\n  }\n\n  .audit-card table {\n    display: table !important;\n    width: 100%;\n    border-collapse: collapse;\n    font-size: 12.5px;\n    color: #dfe6ee;\n    table-layout: fixed;\n  }\n\n  .audit-card thead {\n    display: table-header-group !important;\n  }\n\n  .audit-card tbody {\n    display: table-row-group !important;\n  }\n\n  .audit-card tr {\n    display: table-row !important;\n  }\n\n  .audit-card th,\n  .audit-card td {\n    display: table-cell !important;\n  }\n\n  .audit-card thead th {\n    text-align: left;\n    padding: 10px 12px;\n    background: #1f2733;\n    color: #9aa5b1;\n    text-transform: uppercase;\n    font-size: 10.5px;\n    letter-spacing: .04em;\n    position: sticky;\n    top: 0;\n    z-index: 2;\n    white-space: nowrap;\n  }\n\n  .audit-card td {\n    padding: 8px 12px;\n    border-bottom: 1px solid #23293380;\n    word-wrap: break-word;\n  }\n\n  .audit-card tr:hover td {\n    background: #1c2733;\n  }\n\n  .mono {\n    font-family: 'Consolas', monospace;\n    color: #8ecae6;\n  }\n\n  .score {\n    font-weight: 700;\n  }\n\n  .reason {\n    color: #b8c1cc;\n  }\n\n  .badge {\n    padding: 2px 9px;\n    border-radius: 20px;\n    font-size: 11px;\n    font-weight: 600;\n    white-space: nowrap;\n  }\n\n  .badge-critical {\n    background: #4a1216;\n    color: #ff6b6b;\n  }\n\n  .badge-warning {\n    background: #4a3a10;\n    color: #ffd166;\n  }\n\n  .badge-normal {\n    background: #123420;\n    color: #4fd1c5;\n  }\n\n  .empty {\n    text-align: center;\n    color: #6b7684;\n    padding: 16px;\n  }\n</style>\n<div class=\"audit-card\">\n  <div class=\"audit-scroll\">\n    <table>\n      <colgroup>\n        <col style=\"width:11%\">\n        <col style=\"width:16%\">\n        <col style=\"width:11%\">\n        <col style=\"width:10%\">\n        <col style=\"width:8%\">\n        <col style=\"width:10%\">\n        <col style=\"width:34%\">\n      </colgroup>\n      <thead>\n        <tr>\n          <th>Time</th>\n          <th>Txn ID</th>\n          <th>Account</th>\n          <th>Amount</th>\n          <th>Score</th>\n          <th>Risk</th>\n          <th>Reason</th>\n        </tr>\n      </thead>\n      <tbody ng-bind-html=\"msg.payload\"></tbody>\n    </table>\n  </div>\n</div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 1800,
+        "y": 660,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f70c",
+        "type": "ui_template",
+        "z": "4d3e3113752967c4",
+        "group": "b50890fd10d45446",
+        "name": "Global Theme CSS",
+        "order": 1,
+        "width": 6,
+        "height": 1,
+        "format": "<style>\nmd-toolbar, .md-toolbar-tools { background:#161b22 !important; }\n.nr-dashboard-cardtitle, md-card-title-text .md-title { color:#9aa5b1 !important; font-weight:600 !important; letter-spacing:.03em; }\nmd-card { background:#1a1f28 !important; border-radius:10px !important; overflow:hidden !important; }\n/* Selectors above target Node-RED Dashboard's Angular Material theme classes.\n   If your Dashboard version renders differently, use the browser inspector on your\n   dashboard page to confirm the exact class names and adjust here. */\n</style>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "global",
+        "className": "",
+        "x": 380,
+        "y": 20,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f709",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Update Critical Alerts Feed",
+        "func": "var t = msg.payload;\nvar alerts = flow.get('criticalAlerts') || [];\nalerts.unshift({\n    time: new Date(t.timestamp).toLocaleTimeString(),\n    transactionId: t.transactionId,\n    account: t.accountId,\n    amount: Number(t.amount).toFixed(2),\n    score: t.riskScore,\n    reason: t.reason\n});\nif (alerts.length > 5) alerts.pop();\nflow.set('criticalAlerts', alerts);\n\nvar html = alerts.map(function(a) {\n    return '<div class=\"alert-item\">' +\n        '<div class=\"alert-top\"><span class=\"alert-score\">' + a.score + '</span>' +\n        '<span class=\"alert-txn\">' + a.transactionId + '</span>' +\n        '<span class=\"alert-time\">' + a.time + '</span></div>' +\n        '<div class=\"alert-body\">' + a.account + ' &middot; \\u00a3' + a.amount + '</div>' +\n        '<div class=\"alert-reason\">' + a.reason + '</div>' +\n    '</div>';\n}).join('');\n\nmsg.payload = html || '<div class=\"alert-empty\">No critical alerts</div>';\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1010,
+        "y": 1440,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f70a"
+            ]
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f70a",
+        "type": "ui_template",
+        "z": "4d3e3113752967c4",
+        "group": "f1a2b3c4d5e6f70b",
+        "name": "Critical Alerts Feed",
+        "order": 1,
+        "width": "6",
+        "height": "5",
+        "format": "<style>\n.alerts-card { font-family:'Segoe UI',sans-serif; padding:6px 2px; }\n.alerts-wrap { display:flex; flex-direction:column; gap:10px; max-height:340px; overflow-y:auto; padding-right:4px; }\n.alert-item { background:#2a1216; border-left:4px solid #ff4d4d; border-radius:8px; padding:12px 14px;\n  animation: pulseGlow 1.8s ease-in-out infinite; }\n.alert-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }\n.alert-score { background:#ff4d4d; color:#1a0000; font-weight:800; font-size:12px; padding:2px 10px; border-radius:10px; }\n.alert-txn { font-family:'Consolas',monospace; color:#ffb3b3; font-size:12px; }\n.alert-time { color:#c99; font-size:11px; }\n.alert-body { color:#f3d4d4; font-size:13px; margin-bottom:2px; }\n.alert-reason { color:#d99; font-size:11.5px; }\n.alert-empty { text-align:center; color:#6b7684; padding:20px; }\n@keyframes pulseGlow { 0%,100% { box-shadow:0 0 0 rgba(255,77,77,0); } 50% { box-shadow:0 0 10px rgba(255,77,77,0.5); } }\n</style>\n<div class=\"alerts-card\">\n  <div class=\"alerts-wrap\" ng-bind-html=\"msg.payload\"></div>\n</div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 1240,
+        "y": 1440,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f703",
+        "type": "inject",
+        "z": "4d3e3113752967c4",
+        "name": "Create Review Table",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 460,
+        "y": 2400,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f704"
+            ]
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f704",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Build Create Review Table SQL",
+        "func": "msg.payload =\n`CREATE TABLE IUGRED_15.ANALYST_REVIEW_LOG (\n  REVIEW_ID      INT GENERATED ALWAYS AS IDENTITY,\n  TRANSACTION_ID VARCHAR(30),\n  ACCOUNT_ID     VARCHAR(20),\n  DISPOSITION    VARCHAR(30),\n  ANALYST_NOTES  VARCHAR(500),\n  REVIEWED_AT    TIMESTAMP\n)`;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 810,
+        "y": 2400,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f705",
+                "f1a2b3c4d5e6f706"
+            ]
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f705",
+        "type": "DB2 for i",
+        "z": "4d3e3113752967c4",
+        "mydb": "c783136d02b66193",
+        "name": "Create Review Table DB2",
+        "arraymode": false,
+        "x": 1130,
+        "y": 2380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f706",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 19",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1120,
+        "y": 2440,
+        "wires": []
+    },
+    {
+        "id": "f1a2b3c4d5e6f707",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Prepare Review Log Insert",
+        "func": "var d = msg.dispositionInfo;\n\nfunction esc(v) {\n    return String(v === undefined || v === null ? \"\" : v).replace(/'/g, \"''\");\n}\n\n// look up account id from the flagged table cache if available\nvar table = flow.get('flaggedTable') || [];\nvar match = table.find(function(r) { return r.transactionId === d.transactionId; });\nvar accountId = match ? match.account : \"\";\n\nmsg.payload = `\nINSERT INTO IUGRED_15.ANALYST_REVIEW_LOG\n(TRANSACTION_ID, ACCOUNT_ID, DISPOSITION, ANALYST_NOTES, REVIEWED_AT)\nVALUES (\n    '${esc(d.transactionId)}',\n    '${esc(accountId)}',\n    '${esc(d.disposition)}',\n    '${esc(d.notes)}',\n    CURRENT_TIMESTAMP\n)\nWITH NC\n`;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1070,
+        "y": 2120,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f708"
+            ]
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f708",
+        "type": "DB2 for i",
+        "z": "4d3e3113752967c4",
+        "mydb": "c783136d02b66193",
+        "name": "Insert Review Log",
+        "arraymode": false,
+        "x": 1380,
+        "y": 2120,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f70e",
+        "type": "inject",
+        "z": "4d3e3113752967c4",
+        "name": "Check Review Log Rows",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 400,
+        "y": 2660,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f70f"
+            ]
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f70f",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Select Review Rows",
+        "func": "msg.payload = `\nSELECT REVIEW_ID, TRANSACTION_ID, ACCOUNT_ID, DISPOSITION, ANALYST_NOTES, REVIEWED_AT\nFROM IUGRED_15.ANALYST_REVIEW_LOG\nORDER BY REVIEWED_AT DESC\nFETCH FIRST 10 ROWS ONLY\n`;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 740,
+        "y": 2660,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f710"
+            ]
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f710",
+        "type": "DB2 for i",
+        "z": "4d3e3113752967c4",
+        "mydb": "c783136d02b66193",
+        "name": "",
+        "arraymode": true,
+        "x": 1030,
+        "y": 2660,
+        "wires": [
+            [
+                "f1a2b3c4d5e6f711"
+            ]
+        ]
+    },
+    {
+        "id": "f1a2b3c4d5e6f711",
+        "type": "debug",
+        "z": "4d3e3113752967c4",
+        "name": "debug 20",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1310,
+        "y": 2660,
+        "wires": []
+    },
+    {
+        "id": "f1a2b3c4d5e6f712",
+        "type": "comment",
+        "z": "4d3e3113752967c4",
+        "name": "Separate Analyst Review Log (append-only audit trail)",
+        "info": "Each disposition submission now also writes a row to its own ANALYST_REVIEW_LOG table, so history is preserved even if the same transaction is reviewed more than once, in addition to updating RISK_AUDIT_LOG for quick lookup.",
+        "x": 460,
+        "y": 2340,
+        "wires": []
+    },
+    {
+        "id": "5b61a4648685b02c",
+        "type": "function",
+        "z": "4d3e3113752967c4",
+        "name": "Update Review Log Display",
+        "func": "var d = msg.dispositionInfo;\nvar log = flow.get('reviewLogDisplay') || [];\nlog.unshift({\n    time: new Date().toLocaleTimeString(),\n    transactionId: d.transactionId,\n    disposition: d.disposition,\n    notes: d.notes || '(no notes)'\n});\nif (log.length > 10) log.pop();\nflow.set('reviewLogDisplay', log);\n\nfunction badge(disp) {\n    var cls = disp === \"Confirmed Fraud\" ? \"badge-fraud\" :\n        disp === \"False Positive\" ? \"badge-false\" : \"badge-escalate\";\n    return '<span class=\"badge ' + cls + '\">' + disp + '</span>';\n}\n\nvar html = log.map(function (r) {\n    return '<tr>' +\n        '<td>' + r.time + '</td>' +\n        '<td class=\"mono\">' + r.transactionId + '</td>' +\n        '<td>' + badge(r.disposition) + '</td>' +\n        '<td class=\"notes\">' + r.notes + '</td>' +\n        '</tr>';\n}).join('');\n\nmsg.payload = html || '<tr><td colspan=\"4\" class=\"empty\">No reviews submitted yet</td></tr>';\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1060,
+        "y": 1860,
+        "wires": [
+            [
+                "9bec050eb9a7a8f9"
+            ]
+        ]
+    },
+    {
+        "id": "9bec050eb9a7a8f9",
+        "type": "ui_template",
+        "z": "4d3e3113752967c4",
+        "group": "274c2114d5c205ef",
+        "name": "Review Log Table",
+        "order": 1,
+        "width": "6",
+        "height": "2",
+        "format": "<style>\n    .review-card {\n        font-family: 'Segoe UI', sans-serif;\n        background: #161b22;\n        border-radius: 10px;\n        padding: 10px;\n    }\n\n    .review-scroll {\n        max-height: 260px;\n        overflow-y: auto;\n    }\n\n    .review-card table {\n        display: table !important;\n        width: 100%;\n        border-collapse: collapse;\n        font-size: 12.5px;\n        color: #dfe6ee;\n        table-layout: fixed;\n    }\n\n    .review-card thead {\n        display: table-header-group !important;\n    }\n\n    .review-card tbody {\n        display: table-row-group !important;\n    }\n\n    .review-card tr {\n        display: table-row !important;\n    }\n\n    .review-card th,\n    .review-card td {\n        display: table-cell !important;\n    }\n\n    .review-card thead th {\n        text-align: left;\n        padding: 10px 12px;\n        background: #1f2733;\n        color: #9aa5b1;\n        text-transform: uppercase;\n        font-size: 10.5px;\n        letter-spacing: .04em;\n        position: sticky;\n        top: 0;\n    }\n\n    .review-card td {\n        padding: 8px 12px;\n        border-bottom: 1px solid #23293380;\n        word-wrap: break-word;\n    }\n\n    .review-card tr:hover td {\n        background: #1c2733;\n    }\n\n    .mono {\n        font-family: 'Consolas', monospace;\n        color: #8ecae6;\n    }\n\n    .notes {\n        color: #b8c1cc;\n    }\n\n    .badge {\n        padding: 2px 9px;\n        border-radius: 20px;\n        font-size: 11px;\n        font-weight: 600;\n        white-space: nowrap;\n    }\n\n    .badge-fraud {\n        background: #4a1216;\n        color: #ff6b6b;\n    }\n\n    .badge-false {\n        background: #123420;\n        color: #4fd1c5;\n    }\n\n    .badge-escalate {\n        background: #4a3a10;\n        color: #ffd166;\n    }\n\n    .empty {\n        text-align: center;\n        color: #6b7684;\n        padding: 16px;\n    }\n</style>\n<div class=\"review-card\">\n    <div class=\"review-scroll\">\n        <table>\n            <colgroup>\n                <col style=\"width:14%\">\n                <col style=\"width:22%\">\n                <col style=\"width:20%\">\n                <col style=\"width:44%\">\n            </colgroup>\n            <thead>\n                <tr>\n                    <th>Time</th>\n                    <th>Txn ID</th>\n                    <th>Disposition</th>\n                    <th>Notes</th>\n                </tr>\n            </thead>\n            <tbody ng-bind-html=\"msg.payload\"></tbody>\n        </table>\n    </div>\n</div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 1350,
+        "y": 1860,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "b50890fd10d45446",
+        "type": "ui_group",
+        "name": "Controls",
+        "tab": "5f02d2c65b8e5cdf",
+        "order": 1,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "e86fde56491e81cb",
+        "type": "ui_group",
+        "name": "Live Risk",
+        "tab": "5f02d2c65b8e5cdf",
+        "order": 2,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "d89deef6ad8ae363",
+        "type": "ui_group",
+        "name": "Stats",
+        "tab": "5f02d2c65b8e5cdf",
+        "order": 3,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "c783136d02b66193",
+        "type": "DB2 for i Config",
+        "cnnname": "MohitR",
+        "db": "*LOCAL",
+        "keepalive": true
+    },
+    {
+        "id": "22a43d0e9b34ef0f",
+        "type": "ui_group",
+        "name": "Analyst Review",
+        "tab": "5f02d2c65b8e5cdf",
+        "order": 6,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "2fb73521e634bbec",
+        "type": "ui_group",
+        "name": "Audit Log",
+        "tab": "5f02d2c65b8e5cdf",
+        "order": 5,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "f1a2b3c4d5e6f70b",
+        "type": "ui_group",
+        "name": "Critical Alerts",
+        "tab": "5f02d2c65b8e5cdf",
+        "order": 4,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "274c2114d5c205ef",
+        "type": "ui_group",
+        "name": "Review Log",
+        "tab": "5f02d2c65b8e5cdf",
+        "order": 7,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "5f02d2c65b8e5cdf",
+        "type": "ui_tab",
+        "name": "Risk Monitor",
+        "icon": "dashboard",
+        "order": 13,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "9b9259fc40a4c938",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-dashboard": "3.6.6",
+            "node-red-contrib-db2-for-i": "0.2.4"
+        }
+    }
+]

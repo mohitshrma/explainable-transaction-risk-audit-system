@@ -55,6 +55,8 @@ flowchart LR
 **Adjustable Critical Threshold** — analysts can tune detection sensitivity live from the dashboard
 ![Threshold adjustment](docs/screenshots/threshold-adjustment.png)
 
+**DB2-backed Audit Log** — every flagged transaction permanently recorded with its fuzzy-engine explanation
+![Audit log](docs/screenshots/audit-log.png)
 
 ## How the Fuzzy Engine Works
 

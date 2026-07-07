@@ -103,7 +103,7 @@ CREATE TABLE IUGRED_15.ANALYST_REVIEW_LOG (
 
 ## Acknowledgements
 
-Built as part of my **IBM IIUG Flexible Placement** (Summer 2026), under the guidance of Liam and the IIUG team, in partnership with the University of Wolverhampton.
+Built as part of my **IBM IIUG Flexible Placement** (Summer 2026), under the guidance of Dr. Liam Naughton and the IIUG team, in partnership with the University of Wolverhampton.
 
 ## License
 
